@@ -33,7 +33,7 @@ The programs (and libraries) are provided as source files in the usual way, but 
 	
 ### 	Also Provided:
 
-The CDP program **pvplay** is included in the binary zip files (binary only; full source is available in the CDPR7 repository). This has always been able to play mono and stereo .pvx files, but hitherto totally undocumented!
+The CDP program **pvplay** is included in the binary zip files (binary only; full source is available in the CDP7 repository). This has always been able to play mono and stereo .pvx files, but hitherto totally undocumented!
 
 Use this to play the also included examples of .pvx analysis files. Note, these may change on an irregular basis - keep checking!
 
