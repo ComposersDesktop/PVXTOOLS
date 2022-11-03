@@ -1,0 +1,182 @@
+pvoc - phase vocoder
+SYNOPSIS
+pvoc  [-flags] infile outfile
+
+ DESCRIPTION
+pvoc is the program which actually implements the phase vocoder.  
+The phase vocoder is a signal processing technique which can
+be used to produce very high fidelity modifications of an arbitrary
+input sound.  It can be used as an analysis-synthesis system to
+independently modify duration and pitch, or it can be used simply to
+perform analysis, with the data being subsequently utilized in cmusic or
+elsewhere.  The one drawback to the phase vocoder is that it requires
+considerable amounts of computation time and of soundfile disk space;
+however, intelligent selection of parameter values can do much to
+alleviate this problem.
+
+The phase vocoder can be viewed as a bank of bandpass filters,
+but with one additional complication:  whereas the output of a normal
+bandpass filter is simply a bandpass-filtered version of its input, 
+the outputs of the phase vocoder bandpass filters are the time-varying
+amplitude and frequency of the bandpass-filtered signal.  For example,
+if the input signal is a tone of well defined pitch, and if the phase
+vocoder bandpass filters are set up so that exactly one harmonic of the
+input signal lies within each filter bandpass, then the outputs of the
+phase vocoder will be the instantaneous amplitudes and frequencies of
+each harmonic.
+
+Actually, this only describes the analysis part
+of the phase vocoder; much of the attraction of the phase vocoder is
+that it can also recombine the analysis data to produce a perfect
+resynthesis of the original input.  In addition, it can modify the
+analysis data to produce resyntheses of arbitrary duration without altering
+the pitch.  In fact, very high fidelity time-scale modification can
+often be obtained even when the pitch is unknown (or not well defined)
+or even when the input is polyphonic.  The key requirement is simply
+that the phase vocoder have enough filters (of narrow enough bandwidth)
+so that the entire spectrum of the input is covered, but never with
+more than a single harmonic in any one filter bandpass.
+
+The phase vocoder recognizes the following flags:
+
+-R  input sampling rate.  The default is the input sampling rate listed
+in the soundfile header; hence, this flag is RARELY USED.  If the header
+value is not correct (or if there is no header) the -R
+flag MUST be used to specify the correct value; failure
+to do this will render the analysis data useless.
+
+-N  size of FFT analysis block.  The default is 256.  Filters will be
+centered at 0 Hz, R/N Hz, 2R/N Hz, ..., (N-1)R/N Hz.  Typically, N
+should be chosen so that R/N is less than the lowest pitch in the
+input sound; this ensures that no more than one harmonic will ever
+fall within a given filter (assuming that the filter bandwidth is
+not greater than the separation between adjacent filters).  For polyphonic
+sounds, more filters may be required.The phase vocoder runs most
+efficiently when N is a highly composite number (e.g., a power of
+two), but any even value will be accepted.  (Odd values of N will
+be internally rounded up.)
+
+-F  fundamental frequency.  This is an alternative to specifying N
+directly; DON'T use both -N and -F.  The phase vocoder simply sets
+N = R/F or F = R/N depending on which is specified. (A specified
+value of F may be slightly readjusted internally to make N even.)
+
+-M  length of filter impulse response.  The default is N-1.  NOTE:
+It is far more common to specify -W than -M (see below). The filter
+half-bandwidth (i.e., width from center of passband to edge of stopband)
+will be given approximately by 2R/M (for a hamming filter); hence, a longer
+impulse response gives a proportionally narrower bandwidth.   For
+good analysis results, M should be on the order of 4*N-1; for good
+time scaling, it is better to let M = N-1 (or even N/2-1). (But sometimes
+4*N-1 works better for time-scaling too!)  Any odd value will be accepted.
+(Even values of M will be internally rounded down).
+
+-W  filter bandwidth factor.  This is an alternative to specifying M directly; 
+DON'T use both -W and -M.  The phase vocoder simply sets M = 4*N-1,
+2*N-1, N-1, or N/2-1 corresponding to -W0, -W1, -W2, or -W3.  So the
+above suggestions for M translate to usually using W0 for analysis and
+W3 (or W0) for synthesis.  Intermediate values (e.g., W1 and W2) are less
+frequently used.
+
+-D  decimation factor.  The default will be automatically calculated as
+D = M/8 (D = M/(8T) if time expansion by a factor of T>1 is specified).
+The default is the maximum recommended decimation factor.  This flag
+should NOT be specified in normal use.
+
+-I  interpolation factor.  The default is I = D (I = T*D if time scaling
+by a factor of T is specified).  This flag is ALMOST NEVER used.
+
+-L  length of synthesis filter impulse response.  The default is L = M.
+This flag is ALMOST NEVER used.
+
+-T  time scale expansion factor.  The default is T = 1.  Integer values 
+of T give the best results for speech; for music, non-integers work 
+equally well.  Large values will not necessarily sound good! NOTE: The
+time-scale factor is readjusted internally.  The actual expansion
+(or compression factor) will be the ratio of the integers I/D.
+
+-P  pitch-transpostion factor.  The default is P = 1.  The actual
+transposition factor will be a ratio of integers N/NO which will
+hopefully be equal to I/D.  This is most likely to work if N is a
+large number; but, in fact, pitch transposition is far less reliable
+than time-scaling.  (One solution to this is to implement all pitch
+transposition in two distinct steps: 1) time-scale by desired pitch
+factor (e.g., 1.0595 for a half-step), 2) sample-rate convert by
+inverse of this factor (e.g., input_rate/output_rate = 1./1.0595).
+But note that even this can only be done reliably by specifying I
+and D directly instead of T.)
+
+-w  warp spectral envelope.  The default is w = 1.  This is an experimental
+feature which can be used to preserve the spectral envelope while 
+performing pitch-transposition.  For example, if P = 2., then specifying -w
+with no argument will produce appropriate warping for P = 2 (i.e., -w2).  A
+value of -w different from -P can be specified if desired.
+
+-K  flag for using Kaiser filter instead of hamming filter.  This flag 
+is ALMOST NEVER used.
+
+-A  flag for analysis only.  The results should be piped to sndout with
+a file name ending in ".i" (or something similar) to remind the user 
+that this sound file contains analysis data and should NOT be played.
+The format is N+2 channels (N/2 + 1 amplitude channels and N/2 + 1
+frequency channels all interleaved), with odd channels being amplitudes
+and even channels being frequencies (channels are numbered 1 thru N+2).
+The first two channels contain the amplitude and frequency of the DC
+(zero frequency) filter, so the data for the fundamental is usually
+in channels 3 (amplitude) and 4 (frequency).
+
+-E  flag for analysis only with spectral envelope output instead of
+amplitude and frequency.  The format is single channel at a sample
+rate of (N/2 + 1) * R / D.  (i.e., the spectral envelope is calculated
+every R/D input samples; N/2 + 1 values are required to specify the
+spectral envelope.)
+
+-S  flag for synthesis only.  The input is assumed to have been created
+by a previous run of the phase vocoder using all of the same flags (except
+-A in place of -S).  DON'T specify both -A and -S.
+
+-V  flag for creating summary text file.  The default name for this file
+is pvoc.s; this can be changed by entering the desired new file name as
+the last item on the command line (after all of the flags).  This flag
+can be useful for keeping accurate records of phase vocoder runs.
+However, with large numbers of channels, it may be wise to edit it down
+to some smaller size using vi.
+
+A typical use of the phase vocoder for analysis might be specified as:
+
+sndin in_file | pvoc -F440 -W0 -A -V stat_file | sndout out_file 
+
+A typical use of the phase vocoder for time scaling might be specified as:
+
+sndin in_file | pvoc -N1024 -W3 -T4 | sndout out_file
+
+A detailed description of usage (and suggestions for optimal usage)
+are contained in the helpfile for this program.  However, one point
+which is well worth stressing here is that the input soundfile should
+NEVER be at a high sampling rate unless the run in question is the
+absolutely final version of a production run!  Failure to observe
+this rule will slow the computer down horribly and pointlessly.
+
+ DIAGNOSTICS
+
+Diagnostics originating in pvoc are only concerned with catching
+bad flag specifications and are intended to be self explanatory.
+Probably the most cryptic is "warning P=something not equal to T=
+something_else"; this occurs when pitch transposition by some
+unobtainable factor is attempted.  If the listed P and T differ 
+by more than .1 or so, it may help to try again with a larger N.
+
+ BUGS
+
+Sound inputs with peak amplitudes near 1. can sometimes result
+in modified versions with peak amplitudes greater than 1.; this
+will result in a particularly nasty form of overflow when piped
+to sndout.  The solution is to rescale the input using "gain".
+
+Although the phase vocoder works well for a surprisingly wide variety
+of sound transformations, there are some cases where it simply will
+not perform acceptably.  These are areas for further research!
+
+AUTHOR
+Mark Dolson
+

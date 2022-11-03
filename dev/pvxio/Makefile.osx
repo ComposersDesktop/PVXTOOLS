@@ -1,0 +1,37 @@
+# OSX makefile for pvxio 
+
+CC = cc
+OPT = -O3
+#OPT = -g
+# edit this as necessary to point to your portaudio directory
+
+CFLAGS = $(OPT) -mmacosx-version-min=10.8 -Dunix -DMAC  -Wall -Werror=strict-aliasing -I../include
+OBJS=pvfileio.o
+TARGET=libpvxio.a
+
+.c.o:
+	$(CC) $(CFLAGS) -c $<
+
+all:	$(TARGET)
+
+	 
+$(TARGET): $(OBJS)
+	libtool -static -o $(TARGET) $(OBJS)
+	ranlib $(TARGET)
+
+clean:
+	rm  -f $(OBJS)
+
+veryclean:	clean
+	rm -f $(TARGET)
+
+install:	$(TARGET)
+	cp $(TARGET) ../lib
+    
+# dependencies
+
+pvfileio.o:	../include/pvfileio.h ../include/pvdefs.h
+
+
+
+

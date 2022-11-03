@@ -1,0 +1,61 @@
+#
+#	
+#
+#	OSX makefile for pvocex
+
+# to skip fftw, remove -DUSE_FFTW, substitute MXOBJS for FFTWOBJS, 
+# and remove $(FFTWLIBS) from the build line
+#
+
+CC=cc
+CPP=g++
+#HOME = ~
+#assumes fftw is built and installed in 'the usual place'
+INCFFTW = -I$(HOME)/dev/fftw-2.1.5/fftw -I$(HOME)/dev/fftw-2.1.5/rfftw
+IPORTSF = -I../include
+LPORTSF = ../lib
+FFTWLIBS = -lrfftw -lfftw
+#use MXOBJS for standard CARL version
+MXOBJS= mxfft.o crack.o pvoc.o polish.o sfexpr.o
+#FFTWOBJS= pvoc.o crack.o polish.o sfexpr.o
+
+#modify to suit your processor, etc 
+#CFLAGS = -O3 -Dunix -DUSE_FFTW -DFFTW_ENABLE_FLOAT -fomit-frame-pointer  -funroll-loops $(IPORTSF) $(INCFFTW)
+CFLAGS = -O3 -Dunix -fomit-frame-pointer -funroll-loops $(IPORTSF)
+PROG=pvocex
+#
+#	targets
+#
+
+.c.o:
+	$(CC) $(CFLAGS) -c $<
+.cpp.o:
+	$(CPP) $(CFLAGS) -c $<
+
+all:	$(PROG)
+
+clean:
+#	-rm -f $(FFTWOBJS)
+	-rm -f $(MXOBJS)
+
+veryclean:
+#	-rm -f $(FFTWOBJS) $(PROG)
+	-rm -f $(MXOBJS) $(PROG)
+
+
+#$(PROG):	$(FFTWOBJS)
+#	$(CC) $(CFLAGS) -o $(PROG)  $(FFTWOBJS) -lm $(LPORTSF) $(FFTWLIBS)
+
+$(PROG): $(MXOBJS)
+	$(CC) $(CFLAGS) -o $(PROG) $(MXOBJS) -lm -L$(LPORTSF) -lportsf -lpvxio 
+
+install:	$(PROG)
+	cp $(PROG) ../Release
+#
+#	dependencies
+#
+pvoc.o mxfft.o:		pvoc.h
+
+
+
+

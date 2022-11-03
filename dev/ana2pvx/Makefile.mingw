@@ -1,0 +1,41 @@
+#
+#	MinGW makefile for ana2pvx Richard Dobson Nov 1 2022
+#
+#
+CC=gcc
+CPP=g++
+CDPROOT=../../../CDPr8src
+SFINC=$(CDPROOT)/include
+PVXINC=../include
+PVXLIB=../lib
+SFSYS=$(CDPROOT)/lib
+MSLIBS= -lkernel32 -luser32 -lole32 -lwinspool -lodbc32 -lgdi32 -lcomdlg32 -ladvapi32 -lshell32 -loleaut32 -luuid
+CFLAGS= -Wall -O2 -I$(PVXINC) -I$(SFINC)  -L$(PVXLIB) -L$(SFSYS)
+PROG= ana2pvx.exe
+
+.c.o:
+	$(CC) $(CFLAGS) -c $<
+.cpp.o:
+	$(CPP) $(CFLAGS) -c $<
+#
+#	targets
+#
+
+all:	$(PROG)
+
+$(PROG):	ana2pvx.o
+	$(CC) $(CFLAGS) ana2pvx.o -o $(PROG) -lsfsys -lpvxio $(MSLIBS)
+
+clean:
+	-rm -f *.o
+
+veryclean:	clean
+	rm  -f $(PROG)
+
+install:	$(PROG)
+	cp $(PROG) ../Release
+
+#
+#	dependencies
+#
+

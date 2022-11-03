@@ -1,0 +1,211 @@
+<!doctype html public "-//w3c//dtd html 4.0 transitional//en">
+<html>
+<head>
+   <meta http-equiv="Content-Type" content="text/html; charset=iso-8859-1">
+   <meta name="Author" content="rdbr03035">
+   <meta name="GENERATOR" content="Mozilla/4.51 [en] (WinNT; I) [Netscape]">
+   <title>PVOCEX File Format</title>
+</head>
+<body>
+
+<blockquote>
+<blockquote>
+<blockquote>
+<blockquote>
+<blockquote><b><font size=+3>PVOC-EX</font></b></blockquote>
+</blockquote>
+</blockquote>
+</blockquote>
+</blockquote>
+<b><font size=+2>File format for Phase Vocoder data, based on</font></b>
+<br><b><font size=+2>WAVE_FORMAT_EXTENSIBLE.</font></b>
+<p><b><font size=+1>Preliminary specification.</font></b>
+<br>&nbsp;
+<p><font size=+1>Rationale.</font>
+<p>The PVOC-EX file format seeks to provide a cross-platform and robust
+format for standard
+<br>fixed-overlap phase vocoder analysis files. Many implementations of
+the phase vocoder exist, notably in <a href="https://csound.com/">Csound</a>,
+<br>the <a href="http://composersdesktop.com/">CDP</a> system
+(based on the CARL implementation (Moore/Dolson)), Soundhack 
+(<a href="https://music-cms.ucsd.edu/people/faculty/regular_faculty/tom-erbe/index.html">Tom
+Erbe</a>), and the PVC package (<a href="https://arts.ufl.edu/directory/profile/1687">Paul Koonce</a>).
+<br> 
+The differences between these formats are
+minor, and consist of different headers, and varying scale factors for
+amplitude. <br>More importantly, the Csound&nbsp; format is not defined fully,
+and uses the byte-order of the
+host platform. <br>The Soundhack format is based closely on the Csound
+format, and similarly does not define word-order, <br> though by being hosted
+on the Macintosh platform it will invariably be written in big-endian
+format.
+<p>Uniquely, the PVC implementation supports multi-channel sources (stereo
+and beyond).
+<p>While it would be a simple matter to converge the header elements of
+these existing formats, and define a byte order,
+<br>I have felt that the introduction by Microsoft of 
+<a href="https://github.com/microsoft/DirectXTK/wiki/Wave-Formats">WAVE_FORMAT_EXTENSIBLE</a>
+(WAVE_EX), which by definition supports custom extensions, offered a good
+opportunity to define a format based on an existing standard. One reason
+for choosing this route is that it enables rendering information to be
+fully incorporated into the format, by inheriting the WAVEFORMATEX component
+of&nbsp; WAVE_EX. With the power of modern PCs, it is not only possible,
+but easy, to stream more than one channel of analysis data in real time.
+The proposed format is intended to support use of analysis data in a real-time
+streaming environment.
+<p>For big-endian platforms,&nbsp; the <a href="https://cnmat.org/SDIF/">SDIF</a>
+initiative based at CNMAT is likely to prove of lasting significance, though
+a format for phase vocoder data has not yet been defined. SDIF would appear
+to offer the natural format for big-endian platforms. The SDIF format is
+extremely flexible, supporting frame-based data with arbitrary time-stamps,
+and multiple types of data within a single file. A probable problem with
+this is that in many cases file conversion can be only one-way, as while
+a simple phase vocoder format can be converted into an SDIF file, this
+cannot be guaranteed in the other direction. For the reasons outlined above,
+that many programs already share all the important aspects of a single
+format, PVOC-EX is designed to ensure two-way conversion for at least CDP,
+Csound, Soundhack and PVC. The one immediate exception to this is that
+PVOC-EX supports multi-channel data, which as noted above is currently
+only true of PVC, among the applications identified. However, it is my
+hope that the format, once consolidated, will be able to be incorporated
+into all these applications. Since SDIF is designed to support advanced
+and research-oriented applications, I feel that PVOCEX is best kept to
+a minimum specification compatible with effective use.
+<br>&nbsp;
+<br>&nbsp;
+<p><b>The Format</b>.
+<p>This document presumes a basic knowledge of WAVE_EX.
+<p>To extend WAVE_EX, a unique identifier, or GUID, is required. Applications
+which do not recognise, or cannot handle, files with this GUID will reject
+the file. The GUID defined for PVOC-EX is:
+<p>{8312B9C2-2E6E-11d4-A824-DE5B96C3AB21}
+<br>&nbsp;
+<p>The complete format chunk for PVOC-EX is:
+<p>typedef struct {
+<br>&nbsp;WAVEFORMATEXTENSIBLE wxFormat;
+<br>&nbsp;DWORD dwVersion;&nbsp;&nbsp;&nbsp;&nbsp;
+/* initial version is 1*/
+<br>&nbsp;DWORD dwDataSize;&nbsp;&nbsp;&nbsp;&nbsp;
+/*&nbsp; sizeof PVOCDATA data block */
+<br>&nbsp;PVOCDATA data;&nbsp;&nbsp;&nbsp;&nbsp;
+/* 32 byte block */
+<br>} WAVEFORMATPVOCEX;
+<p>The total size of WAVEFORMATPVOCEX is 80 bytes, thus respecting the
+requirements of WAVE_EX that the format chunk support alignment to 8-byte
+boundaries.
+<p><b>wxFormat</b>:
+<br>&nbsp;&nbsp;&nbsp; contains the information required to synthesize
+the file as originally analysed. The full scope of WAVE_EX is available,
+including the definition of speaker positions.This information can be ignored
+by a renderer, though certain fields are important:
+<p><b>wxFormat.Format.nChannels</b>
+<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; Number of channels in the file (mono,
+stereo, etc)
+<p><b>wFormat.Format.nSamplesPerSec</b>
+<br>&nbsp;&nbsp;&nbsp; Sample Rate of the source. Informs applications
+of the Nyquist frequency for the analysis data.
+<p>In circumstances where the analysis data has been synthesized directly,
+these are the two essential pieces of information. It is then a matter
+of choice what output sample format is specified, though for synthetic
+data, use of&nbsp; the floating-point format is recommended. The data for
+the full WAVEFORMATEX block should be set correctly as for any WAVE file.
+<br>&nbsp;
+<p>All information specific to the phase vocoder is contained within the
+PVOCDATA block. This is defined by the structure:
+<p>typedef struct pvoc_data {
+<br>&nbsp;WORD wWordFormat;&nbsp;&nbsp;&nbsp; /* IEEE_FLOAT or IEEE_DOUBLE
+*/
+<br>&nbsp;WORD wAnalFormat;&nbsp;&nbsp;&nbsp; /*PVOC_AMP_FREQ or PVOC_AMP_PHASE
+*/
+<br>&nbsp;WORD wSourceFormat;&nbsp;&nbsp;&nbsp; /* WAVE_FORMAT_PCM or WAVE_FORMAT_IEEE_FLOAT*/
+<br>&nbsp;WORD wWindowType;&nbsp;&nbsp;&nbsp; /* defines the standard analysis
+window used, or a&nbsp; custom window */
+<br>&nbsp;DWORD nAnalysisBins;&nbsp; /* number of analysis channels. */
+<br>&nbsp;DWORD dwWinlen;&nbsp;&nbsp;&nbsp;&nbsp; /* analysis window length,
+in samples */
+<br>&nbsp;DWORD dwOverlap;&nbsp;&nbsp;&nbsp;&nbsp; /* window overlap length
+in samples (decimation)&nbsp; */
+<br>&nbsp;DWORD dwFrameAlign;&nbsp;&nbsp;&nbsp; /* usually nAnalysisBins
+* 2 * sizeof(float) */
+<br>&nbsp;float fAnalysisRate;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+/* sample rate / Overlap */
+<br>&nbsp;float fWindowParam;&nbsp;&nbsp;&nbsp; /* parameter associated
+with some window types: default 0.0f unless needed */
+<br>} PVOCDATA;
+<p><b>Notes on some PVOCDATA fields.</b>
+<p><b>wWordFormat:</b>
+<br>&nbsp;&nbsp;&nbsp; I expect that IEEE_FLOAT will be used almost always.
+I recognize that some advanced applications may wish to be able to use
+doubles; the issue is that more than one f/p format exists for doubles,
+and it will be important to eliminate all possibility of ambiguity here.
+<p><b>wAnalFormat</b>:
+<br>&nbsp;&nbsp;&nbsp; Csound, CDP/CARL, and PVC all write analysis channels
+as amplitude and frequency. Soundhack writes a format as amplitude and
+phase (listed within Csound but not implemented). Other representations
+are possible, but I feel that specifying too many alternative formats adds
+complexity to a receiving application. Conversion is easy between the two
+formats, though of course at a cost computationally.
+<p><b>wSourceFormat</b>
+<br><b>&nbsp;&nbsp;&nbsp; </b>This is required to disambiguate a 32bit
+source sample size as defined in WAVEFORMATEX. Since wFormatTag is WAVE_FORMAT_EXTENSIBLE,
+and a custom GUID is used,&nbsp; the distinction between integer and floating-point
+samples is lost.
+<p><b>wWindowType:</b>
+<br><b>&nbsp;&nbsp;&nbsp; </b>One of the arguable aspects of the specification.
+It is possible to identify a large number of analysis windows. However,
+in current phase vocoder implementations, one of a small set of standard
+windows is used. The following window types have been defined for PVOC-EX
+so far:
+<p>PVOC_HAMMING
+<br>PVOC_HANNING
+<br>PVOC_KAISER
+<br>PVOC_RECT
+<br>PVOC_CUSTOM
+<p>The Kaiser window has an associated parameter, 'beta', which can be
+given in the <b>fWindowParam</b> field. If this is zero, the default value
+of 6.8 will be assumed.
+<p>The provision of PVOC-CUSTOM is possibly contentious. If this is specified,
+the format chunk must be followed, before the 'data' chunk, by a special
+chunk containing the window data, of length <b>dwWinlen</b>. The samples
+must be of the same type as the analysis data itself, as given by <b>wWordFormat</b>.
+The data must be normalised so that the peak sample (centre of the window)
+is 1.0.
+<p><b>nAnalysisBins</b>
+<br>&nbsp;&nbsp;&nbsp; Number of analysis channels. This is derived directly
+from the fft size used in the analysis:
+<br>nAnalysisBins&nbsp; = (fft_size / 2) + 1.
+<p>Note that the format supports the use of window sizes, given by <b>dwWinlen</b>,
+greater than the fft size.
+<br>&nbsp;
+<p><b>Custom Window Chunk</b>.
+<p>&nbsp;&nbsp;&nbsp; This is very simple:
+<br>&nbsp;&nbsp;&nbsp; &lt;PVXW>
+<br>&nbsp;&nbsp;&nbsp; &lt;chunk-size in bytes, excluding tag and size
+field>
+<br>&nbsp;&nbsp;&nbsp; &lt; window data, <b>dwWinlen</b> samples>
+<p>This may well not be adequate. Possible additions include a 4-byte ident,
+and a floats field specifying amplitude. Note that the WAVE_EX spec encourages
+all chunks to support 8-byte alignment.
+<p>No other chunks, apart from the data chunk itself, are required for
+PVOC_EX. Where the renderer sepcifies floating-point samples, the PEAK
+chunk can be used in the usual way. This will be especially relevant where
+a custom window is used, as amplitude levels cannot be presumed.
+<br>
+<p><b>The 'data' chunk</b>.
+<p>Analysis frames are interleaved according to nChannels, i.e.:
+<p>for a stereo file:
+<p>&lt; frame 0 Ch 0>
+<br>&lt; frame 0 Ch 1>
+<br>&lt; frame 1 Ch 0>
+<br>&lt; frame 1 Ch 1>
+<br>etc...
+<p>Frames amplitudes are expected to be normalized close to 1.0. Thus,
+where the source is a full-amplitude sinewave, the peak amplitude in the
+nearest bin will be close to 1.0. Later versions of this document will
+develop this aspect further. Suffice it to say here that both the CARL
+and Soundhack formats provide analysis windows in this form, while Csound
+and PVC require scale factors. The example implementation accompanying
+this release is based on the CARL distribution.
+<p> Richard Dobson, 2000,2022.
+</body>
+</html>

@@ -1,0 +1,83 @@
+PVOCEX
+
+version of CARL pvoc using the PVOC-EX file format.
+
+
+usage:
+
+pvocex [flags] infile outfile
+
+type 
+
+pvocex -h
+
+to see all flags.
+
+The most important are:
+
+-N       set size (in samples) of the FFT analysis window. Default is 1024.
+           Power-of two sizes are optimal (many FFT implementations only support such sizes),
+           but any even number will be accepted.
+
+-F       set fundamental analysis frequency (use instead of -N).
+           useful for clearly pitched monophonic sounds, where some other application
+           (e.g in Csound, or the CDP system) manipulates the frequency data directly.
+           In most cases, it is better to use -N.
+
+-A        perform analysis only - output is .pvx analysis file
+-S        perform synthesis only - input is .pvx analysis file
+
+if neither flag is given, input and output are soundfiles.
+-Tx      perform time scaling. Ignored if -A flag is used. Value above 1 stretches the sound.
+-Px      perform Pitch scaling. Ignored if -A flag is used. Value represents octave ratio (approximately).
+           -T and -P cannot be used together.
+
+-Wx    set window overlap factor x. Default is 2, for 8-fold overlap.
+           Where time-scaling is not being performed, W can usefully be set to 0 or 1,
+           giving a very valuable reduction in processing time. For  pitch-scaling,
+           the default W2 is often unsatisfactory - try W1 instead.
+           W=3 increases overlap, and hence processing time. It is unlikely to be beneficial unless
+          large time-stretch factors are being used. It can preserve accuracy if the sound contains much
+          transient or rapidly changing material.
+
+The file pvoc.txt contains the original CARL documentation by Mark Dolson.
+
+
+PVOCEX2
+
+stereo phase vocoder adapted from CARL pvoc using the PVOC-EX file format.
+
+
+usage:
+
+pvocex2 [flags] infile outfile
+
+Flags:
+
+-N       set size (in samples) of the FFT analysis window. Default is 1024.
+           Power-of two sizes are optimal (many FFT implementations only support such sizes),
+           but any even number will be accepted.
+-A        perform analysis only - output is .pvx analysis file
+-S        perform synthesis only - input is .pvx analysis file
+if neither flag is given, input and output are soundfiles.
+-Tx      perform time scaling. Ignored if -A flag is used. Value above 1 stretches the sound.
+-Px      perform Pitch scaling. Ignored if -A flag is used. Value represents octave ratio (approximately).
+           -T and -P cannot be used together.
+
+-Wx    set window overlap factor x. Default is 2, for 8-fold overlap.
+           Where time-scaling is not being performed, W can usefully be set to 0 or 1,
+           giving a very valuable reduction in processing time. For  pitch-scaling,
+           the default W2 is often unsatisfactory - try W1 instead.
+           W=3 increases overlap, and hence processing time. It is unlikely to be beneficial unless
+          large time-stretch factors are being used. It can preserve accuracy if the sound contains much
+          transient or rapidly changing material.
+
+-I       show .pvx format info. The outfile can optionally be omitted.
+-K     use Kaiser window
+-H     use von Hann (Hanning) window
+         (default window is Hamming)
+-fx     set frame type for analysis file
+         x = 0 = Amplitude,Frequency (default)
+         x = 1 = Amplitude,Phase ( = Soundhack format)
+         x = 2 = Complex (real,imaginary)
+         (NB: -F flag ignored unless -A is set.)      

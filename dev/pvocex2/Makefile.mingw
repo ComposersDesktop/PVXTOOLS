@@ -1,0 +1,42 @@
+#
+#	MinGW makefile for pvocex2
+#	
+#
+CC=gcc
+CPP=g++
+#assumes fftw is built and installed in 'the usual place'
+INCFFTW = -I$(HOME)/dev/fftw-2.1.5/fftw -I$(HOME)/dev/fftw-2.1.5/rfftw
+LPORTSF = -L../lib
+IPORTSF = -I../include
+FFTWLIBS = -lrfftw -lfftw
+MSLIBS= -lkernel32 -luser32 -lole32 -lwinspool -lodbc32 -lgdi32 -lcomdlg32 -ladvapi32 -lshell32 -loleaut32 -luuid
+#CFLAGS=-Wall -Dunix -DUSE_FFTW -DFFTW_ENABLE_FLOAT $(IPORTSF) $(INCFFTW)
+CFLAGS= -Wall -DWIN32 -D_WIN32 -I../include $(IPORTSF)
+PROG=pvocex2.exe
+BINS=pvocex2.o oscbank.o pvoc.o mxfft.o
+.c.o:
+	$(CC) $(CFLAGS) -c $<
+.cpp.o:
+	$(CPP) $(CFLAGS) -c $<
+#
+#	targets
+#
+all:	$(PROG)
+
+clean:
+	rm -f $(PROG)
+
+veryclean:	clean
+	rm -f $(BINS)
+
+$(PROG):	$(BINS)
+	$(CPP) $(CFLAGS) $(BINS) -o $(PROG) $(LPORTSF) -lportsf -lpvxio -lm -static-libgcc -static-libstdc++
+
+install:    $(PROG)
+    cp $(PROG) ../Release
+
+#
+#	dependencies
+#
+oscbank.o:	oscbank.h
+pvoc.o pvocex2.o:	pvpp.h

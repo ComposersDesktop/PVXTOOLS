@@ -1,0 +1,40 @@
+#
+#	OSX makefile for ana2pvx Richard Dobson Nov 1 2022
+#	
+#
+CC=cc
+CPP=g++
+CDPROOT=../../../cdp/Mac64/CDPrelease7src
+SFINC=$(CDPROOT)/include
+PVXINC=../include
+PVXLIB=../lib
+SFSYS=$(CDPROOT)/lib
+CFLAGS= -Wall -O2 -mmacosx-version-min=10.8  -I$(PVXINC) -I$(SFINC)
+PROG= ana2pvx
+
+.c.o:
+	$(CC) $(CFLAGS) -c $<
+.cpp.o:
+	$(CPP) $(CFLAGS) -c $<
+#
+#	targets
+#
+	 
+all:	$(PROG) 
+
+$(PROG):	ana2pvx.o
+	$(CC) $(CFLAGS) ana2pvx.o -o $(PROG) -L$(PVXLIB) -L$(SFSYS) -lsfsys -lpvxio 
+
+clean:
+	-rm -f *.o
+
+veryclean:	clean
+	rm  -f $(PROG) 
+
+install:	$(PROG)
+	cp $(PROG) ../Release
+	
+#
+#	dependencies
+#
+
