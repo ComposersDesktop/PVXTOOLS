@@ -8,7 +8,7 @@ More particularly, it is planned to add support for PVOCEX to the CDP system for
 
 ## The programs
 
-The programs (and libraries) are provided as source files in the usual way, but to encourage immediate explorations precomiled binaries for PC and Mac (64bit) are also provided, in appropriate zip files.
+The programs (and libraries) are provided as source files in the usual way, but to encourage immediate explorations precomiled binaries for PC and Mac (64bit) are also provided, in appropriate zip files. Run any program without arguments to see the usage message.
 
 
 *  ANA2PVX
