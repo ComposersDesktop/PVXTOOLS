@@ -50,13 +50,12 @@ OTHER DEALINGS IN THE SOFTWARE.
 #endif
 
 #ifdef __cplusplus
-extern "C" {	
-#endif	   
+extern "C" {    
+#endif     
 /* compatible with <windows.h> */
-#ifndef DWORD
 typedef unsigned MYLONG DWORD;
 typedef unsigned short WORD;
-#endif
+
 /* NB: AIFF spec always illustrates chunksize as (signed) long; 
    even though nFrames is always unsigned long!
    So we make everything DWORD here.
@@ -65,12 +64,12 @@ typedef unsigned short WORD;
 /* the file sample formats we could support */
 
 typedef enum {
-	PSF_SAMP_UNKNOWN	=	0,
-	PSF_SAMP_8,				   /* not yet supported! */
-	PSF_SAMP_16,
-	PSF_SAMP_24,
-	PSF_SAMP_32,
-	PSF_SAMP_IEEE_FLOAT
+    PSF_SAMP_UNKNOWN    =   0,
+    PSF_SAMP_8,                /* not yet supported! */
+    PSF_SAMP_16,
+    PSF_SAMP_24,
+    PSF_SAMP_32,
+    PSF_SAMP_IEEE_FLOAT
 } psf_stype;
 
 /* the file format */
@@ -78,72 +77,74 @@ typedef enum {
    To be friendly, we should parse the header to get the format.
 */
 typedef enum {
-	PSF_FMT_UNKNOWN = 0,		/* e.g if no extension given. This could also signify 'raw' */
-	PSF_STDWAVE,
-	PSF_WAVE_EX,
-	PSF_AIFF,
-	PSF_AIFC
+    PSF_FMT_UNKNOWN = 0,        /* e.g if no extension given. This could also signify 'raw' */
+    PSF_STDWAVE,
+    PSF_WAVE_EX,
+    PSF_AIFF,
+    PSF_AIFC
 } psf_format;
 
 /* provisional stab at error codes */
 enum {
-	PSF_E_NOERROR		= 0,
-	PSF_E_CANT_OPEN		= -1,
-	PSF_E_CANT_CLOSE	= -2,
-	PSF_E_CANT_WRITE	= -3,
-	PSF_E_CANT_READ		= -4,
-	PSF_E_NOT_WAVE		= -5,
-	PSF_E_BAD_TYPE		= -6,
-	PSF_E_BAD_FORMAT	= -7,
-	PSF_E_UNSUPPORTED	= -8,
-	PSF_E_NOMEM			= -9,
-	PSF_E_BADARG		= -10,
-	PSF_E_CANT_SEEK		= -11,
-	PSF_E_TOOMANYFILES  = -12,
-	PSF_E_FILE_READONLY = -13,
-	PSF_E_SEEK_BEYOND_EOF = -14
+    PSF_E_NOERROR       = 0,
+    PSF_E_CANT_OPEN     = -1,
+    PSF_E_CANT_CLOSE    = -2,
+    PSF_E_CANT_WRITE    = -3,
+    PSF_E_CANT_READ     = -4,
+    PSF_E_NOT_WAVE      = -5,
+    PSF_E_BAD_TYPE      = -6,
+    PSF_E_BAD_FORMAT    = -7,
+    PSF_E_UNSUPPORTED   = -8,
+    PSF_E_NOMEM         = -9,
+    PSF_E_BADARG        = -10,
+    PSF_E_CANT_SEEK     = -11,
+    PSF_E_TOOMANYFILES  = -12,
+    PSF_E_FILE_READONLY = -13,
+    PSF_E_SEEK_BEYOND_EOF = -14
 };
 
 #define NUM_SPEAKER_POSITIONS (18)
 
-#define SPEAKER_FRONT_LEFT				0x1
-#define SPEAKER_FRONT_RIGHT				0x2
-#define SPEAKER_FRONT_CENTER			0x4
-#define SPEAKER_LOW_FREQUENCY			0x8
-#define SPEAKER_BACK_LEFT				0x10
-#define SPEAKER_BACK_RIGHT				0x20
-#define SPEAKER_FRONT_LEFT_OF_CENTER	0x40
-#define SPEAKER_FRONT_RIGHT_OF_CENTER	0x80
-#define SPEAKER_BACK_CENTER				0x100
-#define SPEAKER_SIDE_LEFT				0x200
-#define SPEAKER_SIDE_RIGHT				0x400
-#define SPEAKER_TOP_CENTER				0x800
-#define SPEAKER_TOP_FRONT_LEFT			0x1000
-#define SPEAKER_TOP_FRONT_CENTER		0x2000
-#define SPEAKER_TOP_FRONT_RIGHT			0x4000
-#define SPEAKER_TOP_BACK_LEFT			0x8000
-#define SPEAKER_TOP_BACK_CENTER			0x10000
-#define SPEAKER_TOP_BACK_RIGHT			0x20000
-#define SPEAKER_RESERVED      			0x80000000
+#define SPEAKER_FRONT_LEFT              0x1
+#define SPEAKER_FRONT_RIGHT             0x2
+#define SPEAKER_FRONT_CENTER            0x4
+#define SPEAKER_LOW_FREQUENCY           0x8
+#define SPEAKER_BACK_LEFT               0x10
+#define SPEAKER_BACK_RIGHT              0x20
+#define SPEAKER_FRONT_LEFT_OF_CENTER    0x40
+#define SPEAKER_FRONT_RIGHT_OF_CENTER   0x80
+#define SPEAKER_BACK_CENTER             0x100
+#define SPEAKER_SIDE_LEFT               0x200
+#define SPEAKER_SIDE_RIGHT              0x400
+#define SPEAKER_TOP_CENTER              0x800
+#define SPEAKER_TOP_FRONT_LEFT          0x1000
+#define SPEAKER_TOP_FRONT_CENTER        0x2000
+#define SPEAKER_TOP_FRONT_RIGHT         0x4000
+#define SPEAKER_TOP_BACK_LEFT           0x8000
+#define SPEAKER_TOP_BACK_CENTER         0x10000
+#define SPEAKER_TOP_BACK_RIGHT          0x20000
+/* RWD 2022 use latest version from MS */
+#define SPEAKER_RESERVED                0x7FFC0000
+#define SPEAKER_ALL                     0x80000000
 
 /* my extras*/
-#define SPKRS_UNASSIGNED	(0)
-#define SPKRS_MONO			(0x00000004)
-#define SPKRS_STEREO		(0x00000003)
-#define SPKRS_GENERIC_QUAD	(0x00000033)
-#define SPKRS_SURROUND_LCRS	(0x00000107)
+#define SPKRS_UNASSIGNED    (0)
+#define SPKRS_MONO          (0x00000004)
+#define SPKRS_STEREO        (0x00000003)
+#define SPKRS_GENERIC_QUAD  (0x00000033)
+#define SPKRS_SURROUND_LCRS (0x00000107)
 #define SPKRS_SURR_5_0      (0x00000037)
-#define SPKRS_DOLBY5_1		(0x0000003f)
-#define SPKRS_6_1			(0x0000013f)
+#define SPKRS_DOLBY5_1      (0x0000003f)
+#define SPKRS_6_1           (0x0000013f)
 #define SPKRS_7_1           (0x000000ff)
 #define SPKRS_CUBE          (SPKRS_GENERIC_QUAD | SPEAKER_TOP_FRONT_LEFT | SPEAKER_TOP_FRONT_RIGHT | SPEAKER_TOP_BACK_LEFT | SPEAKER_TOP_BACK_RIGHT)
-#define SPKRS_ACCEPT_ALL	(0xffffffff)	 /*???? no use for a file*/
+#define SPKRS_ACCEPT_ALL    (0xffffffff)     /*???? no use for a file*/
 
 
 /* support for the PEAK chunk */
-typedef struct psf_chpeak {	
-	float val;
-	DWORD pos;   /* OK for all WAVE and AIFF <= 4GB */
+typedef struct psf_chpeak { 
+    float val;
+    DWORD pos;   /* OK for all WAVE and AIFF <= 4GB */
 } PSF_CHPEAK;
 
 /* second two are speculative at present! */
@@ -151,7 +152,7 @@ typedef enum  {PSF_CREATE_RDWR,PSF_CREATE_TEMPORARY,PSF_CREATE_WRONLY} psf_creat
 /* the speakerfeed format */
 /* MC_WAVE_EX is a possibly temporary one to cover abstruse infile formats! */
 typedef enum { STDWAVE,MC_STD,MC_MONO,MC_STEREO,MC_QUAD,MC_LCRS,MC_BFMT,MC_DOLBY_5_1,
-				MC_SURR_5_0,MC_SURR_6_1,MC_SURR_7_1,MC_CUBE,MC_WAVE_EX } psf_channelformat;
+                MC_SURR_5_0,MC_SURR_6_1,MC_SURR_7_1,MC_CUBE,MC_WAVE_EX } psf_channelformat;
 
 /* read access support */
 /* for psf_sndSeek(); ~should~ map directly to fseek mode flags*/
@@ -162,12 +163,12 @@ enum {PSF_DITHER_OFF,PSF_DITHER_TPDF};
 /* main structure to define a soundile. Extended props must be asked for separately */
 typedef struct psf_props 
 {
-	int		srate;
-	int		chans;	
-	psf_stype	samptype;		
-	psf_format	format;			
-	psf_channelformat chformat;	
-	/* probably add more stuff...esp for full WAVE-EX support */
+    int     srate;
+    int     chans;  
+    psf_stype   samptype;       
+    psf_format  format;         
+    psf_channelformat chformat; 
+    /* probably add more stuff...esp for full WAVE-EX support */
 } PSF_PROPS;
 
 
@@ -209,7 +210,7 @@ int psf_sndWriteDoubleFrames(int sfd, const double *buf, DWORD nFrames);
 /* as above, with 16bit data */
 int psf_sndWriteShortFrames(int sfd, const short *buf, DWORD nFrames);
 
-/* 	get current m/c frame position in file, or PSF_E_BADARG with bad sfd*/    
+/*  get current m/c frame position in file, or PSF_E_BADARG with bad sfd*/    
 int psf_sndTell(int sfd);
 
 /* m/c frame wrapper for stdio fseek. return 0 for success. Offset counted in m/c frames.
@@ -218,8 +219,8 @@ int psf_sndSeek(int sfd,int offset,int seekmode);
 
 /* read m/c sample frames into floats buffer. return nFrames, or some PSF_E_*.
     if file opened with rescale = 1, over-range floats data, as indicated by PEAK chunk,
-	is automatically scaled to 0dbFS.
-	NB we could add a facility to define 'headroom', as some level below 0dBFS.
+    is automatically scaled to 0dbFS.
+    NB we could add a facility to define 'headroom', as some level below 0dBFS.
  */
 int psf_sndReadFloatFrames(int sfd, float *buf, DWORD nFrames);
 int psf_sndReadDoubleFrames(int sfd, double *buf, DWORD nFrames);
