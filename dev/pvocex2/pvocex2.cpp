@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2000,2022 Richard Dobson and Composers Desktop Project Ltd
+ * Copyright (c) 2000,2023 Richard Dobson and Composers Desktop Project Ltd
  * http://www.rwdobson.com
  * http://www.composersdesktop.com
  *
@@ -29,8 +29,8 @@
  *  
 */
 /* RWD Feb 2008: fixed problem synthesising  analfile with v small number of frames */
- 
-#include <pvdefs.h>
+ /* RWD Nov 2025: reduced min FFT size to 16, for SoundThread */
+//#include <pvdefs.h>
 extern "C"
 {
 #include <pvfileio.h>
@@ -54,7 +54,6 @@ int stricmp(const char *a, const char *b);
 int strnicmp(const char *a, const char *b, const int length);
 #endif
 
-
 #include "pvpp.h"
 #include "oscbank.h"
 
@@ -64,25 +63,19 @@ int strnicmp(const char *a, const char *b, const int length);
 
 const int FFTLEN = 1024;
 
-
-
 void stereo_split(float *inbuf,float *out_l,float *out_r,int insize);
 void stereo_interl(float *in_l,float *in_r,float *out,int insize);
-//int makeimpulsefile(const char *infilename,const char *outfilename);
-//float *get_filterframe(const char *filename, int *pLength,int fnum);
-//void complexmult(float *frame,const float *impulse,int length,int overlap);
 
 #define DEFAULT_BUFLEN (32768)
 
-
 void usage()
 {
-    printf("\n\nPVOCEX2 v0.15 RWD February 2008");
+    printf("\n\nPVOCEX2 v1.0.2 RWD Nov 2025");
 #ifdef USE_FFTW
     printf(": FFTW Version.");
 #endif
-    printf("\nStereo phase vocoder supporting fast convolution with impulse response.");
-    printf("\nUsage: \n    pvocex2 [-A|-S][-F[fname]][-o[N]][-K|-H][-Px|-Tx][-Wx][-Nsamps][-m][-v]\n\t infile outfile"
+    printf("\nStereo phase vocoder based on CARL pvoc (Mark Dolson)");
+    printf("\nUsage: \n    pvocex2 [-A|-S][-o[N]][-K|-H|R][-Px|-Tx][-Wx][-Nsamps][-fx][I][-m][-v]\n\t infile outfile"
            "\n-A      = perform Analysis only: output is .pvx file."
            "\n-S      = perform Synthesis only: input is .pvx file."
            "\n-o[Nosc]= use osc-bank resynthesis using Nosc oscillators (default = N/2 +1)"
@@ -94,7 +87,7 @@ void usage()
            "\n-Tx     = Apply Time scaling rate x"
            "\n          (NB: time/pitch scaling requires AMP_FREQ format)"    
            "\n-Wx     = set Window overlap factor (0,1,2,3, default 1)"
-           "\n-Nsamps =  Set analysis window to <samps> samples (default 1024)"
+           "\n-Nsamps =  Set analysis window to <samps> samples (min = 16,default 1024)"
            "\n-fx     = set Frame Type for analysis file."
            "\n          x = 0 = Amplitude,Frequency (default)"
            "\n          x = 1 = Amplitude,Phase ( = Soundhack format)"
@@ -179,12 +172,7 @@ int main(int argc,char **argv)
     bool do_Anal = true,do_Syn = true;  /* default is soundfile i/o */
     bool show_info = false;
     bool use_oscbank = false;
-
     char *ext;
-    /* test params for spec pitch*/
-    //float semitones = 11.5f;
-
-
 
     if(!init_pvsys()){
         puts("Unable to start pvsys.\n");
@@ -194,24 +182,21 @@ int main(int argc,char **argv)
         puts("unable to start portsf\n");
         return 1;
     }
-
-
     if(argc < 2){        /* possible -I infile.pvx */
         usage();
         return(1);
     }
 
     while(argc > 1 && argv[1][0]=='-'){
-//        int userwinsize = 0;
         int wfac,fval;
-        
+
         switch(argv[1][1]){
         case 'A':
             if(!do_Anal){
                 fprintf(stderr,"\n-A cannot be used with -S.");
                 return(1);
             }
-            do_Syn = false;         
+            do_Syn = false;
             break;
         case 'S':
             if(!do_Syn){
@@ -222,13 +207,13 @@ int main(int argc,char **argv)
             break;
         case 'N':
             if(argv[1][2]=='\0'){
-                fprintf(stderr,"\nError: window size required for -N");
+                fprintf(stderr,"\nError: window size required for -N.");
                 usage();
                 return(1);
             }
             fftlen = atoi(&(argv[1][2]));
-            if(fftlen < 64){
-                fprintf(stderr,"\nError: window size too small. Must be >= 64.");
+            if(fftlen < 16){
+                fprintf(stderr,"\nError: window size too small. Must be >= 16.");
                 return(1);
             }
             fftlen = fftlen + fftlen%2;  /* make it even */
@@ -283,7 +268,6 @@ int main(int argc,char **argv)
             }
             stype = PVOC_S_TIME;
             T = 1;
-
             break;
         case 'P':
             if(T){
@@ -375,8 +359,6 @@ int main(int argc,char **argv)
         }
     }
 
-
-
     if(do_Anal){
         /* infile is soundfile */       
 
@@ -430,7 +412,6 @@ int main(int argc,char **argv)
             fprintf(stderr,"\nInfile does not have .pvx extension.");
             return(1);
         }
-
         p_pvdata = (PVOCDATA *) malloc(sizeof(PVOCDATA));
         if(p_pvdata==NULL){
             puts("\nNo Memory!");
@@ -441,13 +422,11 @@ int main(int argc,char **argv)
             puts("\nNo Memory!");
             return(1);
         }
-
         pvfile  = pvoc_openfile(argv[1],p_pvdata,p_wfx);
         if(pvfile< 0){
             fprintf(stderr,"\npvocex2: unable to open infile: %s",pvoc_errorstr());
             return(1);
         }
-
         /*stick to mono/stereo for now */
         if(p_wfx->nChannels > 2){
             fprintf(stderr,"\nSorry: can only read mono or stereo pvx files.");
@@ -519,7 +498,7 @@ int main(int argc,char **argv)
             if(argc < 3)
                 return(0);
         }
-        
+
         /* time/pitch scaling only supported for amp-freq at the moment */
         if(scalefac != 1.0 && inframetype!= PVOC_AMP_FREQ)
             printf("\nWarning: time/pitch rescaling only supported for AMP_FREQ format.");
@@ -530,7 +509,7 @@ int main(int argc,char **argv)
             return(1);
         }
         /* use specific init function */
-        
+
         if(!inpv_l->init(srate,fftlen,windowsize,decfac,scalefac,stype,wtype,PVPP_OFFLINE)){
             fprintf(stderr,"\nUnable to initialize inpv_l.");
             return(1);
@@ -541,7 +520,7 @@ int main(int argc,char **argv)
             if(inpv_r==NULL){
                 puts("\nunable to create inpv_r");
                 return(1);
-            }       
+            }
             if(!inpv_r->init(srate,fftlen,windowsize,decfac,scalefac,stype,wtype,PVPP_OFFLINE)){
                 fprintf(stderr,"\nUnable to initialize inpv_r.");
                 return(1);
@@ -564,7 +543,7 @@ int main(int argc,char **argv)
                 return(1);
             }
 
-        }       
+        }
         else if(!outpv_l->init(srate,fftlen,ofac,scalefac,stype,wtype,PVPP_OFFLINE)){
             fprintf(stderr,"\nUnable to initialize outpv_l.");
             delete outpv_l;
@@ -572,7 +551,7 @@ int main(int argc,char **argv)
         }
         /* or another possibility is to init directly from inpv_l */
 
-        if(chans==2){       
+        if(chans==2){
             outpv_r = new phasevocoder();
             if(outpv_r==NULL){
                 puts("\nunable to create outpv");
@@ -586,7 +565,7 @@ int main(int argc,char **argv)
                     return(1);
                 }
 
-            }       
+            }
             else if(!outpv_r->init(srate,fftlen,ofac,scalefac,stype,wtype,PVPP_OFFLINE)){
                 fprintf(stderr,"\nUnable to initialize outpv_r.");
                 delete outpv_r;
@@ -624,7 +603,7 @@ int main(int argc,char **argv)
                 break;
             }
         }
-        else            
+        else
             stype = inprops.samptype;
 
         /*the one gotcha: if output is floats and format is aiff, change to aifc */
@@ -652,7 +631,6 @@ int main(int argc,char **argv)
         assert(insndfile);
 #endif
         pv_stype stype;
-                
         /* get this from infile - defaults to 16bit*/
         switch(inprops.samptype){       
         case(PSF_SAMP_24):
@@ -728,9 +706,9 @@ int main(int argc,char **argv)
     }
     if(do_Syn){     
         outbuf = new float[outbuflen * chans];
-        outbuf_l = new float[outbuflen];        
+        outbuf_l = new float[outbuflen];
         if(chans==2){
-            outbuf_r = new float[outbuflen];            
+            outbuf_r = new float[outbuflen];
         }
     }
 
@@ -744,7 +722,6 @@ int main(int argc,char **argv)
     unsigned int nbins = (fftlen + 2) / 2;   /* i.e clength  */
     nyquist = (float) srate * 0.5f;
     //float  chwidth = nyquist/(float)(nbins - 1);
-
 
     if(do_Syn && use_oscbank) {
         if(ob_noscs_wanted==0)
@@ -902,7 +879,7 @@ int main(int argc,char **argv)
                     thisblock = outpv_r->process_frame(pFrame_r,outbuf_r+j,(pvoc_frametype)PVOC_AMP_FREQ);
                 }
                 samps_to_write += thisblock;
-            }           
+            }
 #ifdef _DEBUG
             if(samps_to_write * chans > outbuflen * chans)
                 assert(0);
@@ -1063,7 +1040,7 @@ int main(int argc,char **argv)
                     printf("Output time: %.2lf\r",outtime);
                 }
             }
-            
+
             /* generate remaining blocks  */
             j =0;
             while(j < fftlen){
@@ -1087,7 +1064,7 @@ int main(int argc,char **argv)
                 printf("Output time: %.2lf\r",outtime);
             }
         }
-        else {          
+        else {
             while(pvoc_getframes(pvfile,pFrame_l,1)){
                  /* no second frame: must be error! */
                 if(!pvoc_getframes(pvfile,pFrame_r,1)){
@@ -1168,7 +1145,6 @@ int main(int argc,char **argv)
         if(framesread < numframes)
             fprintf(stderr,"\nWarning: read only %d frames out of %d.",framesread,numframes);
     }
-    
 
     stopwatch(0);
     if(insndfile >=0)
@@ -1186,7 +1162,6 @@ int main(int argc,char **argv)
         delete p_oscbank;
     if(p_oscbank_r)
         delete p_oscbank_r;
-    
     if(inbuf)
         delete [] inbuf;
     if(outbuf)
@@ -1229,7 +1204,6 @@ void stereo_split(float *inbuf,float *out_l,float *out_r,int insize)
         *pfl_l++ = *pfl_i++;
         *pfl_r++ = *pfl_i++;
     }
-
 }
 
 void stereo_interl(float *in_l,float *in_r,float *out,int insize)
@@ -1253,7 +1227,7 @@ void complexmult(float *frame,const float *impulse,int length, int overlap)
     int i,j;
     /* need some scaling, but is this calc reasonable? */
     scalefac  = (float) (1.0 / pow(2,(double) length / (double)overlap));
-    
+
 
     for(i=0,j = 1;i < length;i+=2,j+=2){
         re = frame[i] * impulse[i] - frame[j] * impulse[j];
@@ -1269,12 +1243,11 @@ int stricmp(const char *a, const char *b)
     while(*a != '\0' && *b != '\0') {
         int ca = islower(*a) ? toupper(*a) : *a;
         int cb = islower(*b) ? toupper(*b) : *b;
-        
+
         if(ca < cb)
             return -1;
         if(ca > cb)
             return 1;
-        
         a++;
         b++;
     }
@@ -1293,15 +1266,13 @@ strnicmp(const char *a, const char *b, const int length)
     while(*a != '\0' && *b != '\0') {
         int ca = islower(*a) ? toupper(*a) : *a;
         int cb = islower(*b) ? toupper(*b) : *b;
-        
+
         if(len-- < 1)
             return 0;
-        
         if(ca < cb)
             return -1;
         if(ca > cb)
             return 1;
-        
         a++;
         b++;
     }
