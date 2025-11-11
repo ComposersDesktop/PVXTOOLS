@@ -5,7 +5,7 @@
 #
 CC=cc
 #CFLAGS= -Wall -Dunix -DPSF_DEBUG -D_DEBUG -I../include
-CFLAGS=-O2 -Wall -mmacosx-version-min=10.8  -Dunix -I../include
+CFLAGS=-O2 -Wall -arch x86_64 -mmacosx-version-min=10.8  -Dunix -I../include
 TARGET=libportsf.a
 PSFOBJS=portsf.o ieee80.o
 
