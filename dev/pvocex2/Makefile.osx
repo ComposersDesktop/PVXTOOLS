@@ -10,7 +10,7 @@ LPORTSF = -L../lib
 IPORTSF = -I../include
 FFTWLIBS = -lrfftw -lfftw
 #CFLAGS=-Wall -Dunix -DUSE_FFTW -DFFTW_ENABLE_FLOAT $(IPORTSF) $(INCFFTW)
-CFLAGS= -Wall -Dunix -I../include $(IPORTSF)
+CFLAGS= -Wall -Dunix -arch x86_64 -mmacosx-version-min=10.9 -I../include $(IPORTSF)
 PROG = pvocex2
 BINS=pvocex2.o oscbank.o pvoc.o mxfft.o
 
@@ -30,7 +30,7 @@ veryclean:	clean
 	rm -f $(BINS)
 
 $(PROG):	$(BINS)
-	$(CPP) $(CFLAGS) $(BINS) -o $(PROG) $(LPORTSF) -lportsf -lpvxio -lm -lstdc++
+	$(CPP) $(CFLAGS) $(BINS) -o $(PROG) $(LPORTSF) -luportsf -lupvxio -lm -lstdc++
 
 install:	 $(PROG)
 	cp $(PROG) ../Release	
