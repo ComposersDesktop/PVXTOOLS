@@ -49,22 +49,7 @@ void reals_(float *,float *,int,int);
 #endif
 #define TWOPI (2.0 * PI)
 
-#if defined _WIN32 && defined _MSC_VER
-#pragma message ("using assembler round()") 
-__inline static int round(double fval)
-{
-    int result;
-    _asm{
-        fld     fval
-        fistp   result
-        mov     eax,result
-    }
-    return result;
-}
-
-#else
 #define round(x) lround(x)
-#endif
 
 phasevocoder::phasevocoder()
 {
