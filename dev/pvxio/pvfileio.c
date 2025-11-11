@@ -1,4 +1,4 @@
-
+          
 /* pvfileio.c */
 /* pvocex format test routines*/
 /* Initial version RWD May 2000.
@@ -55,12 +55,15 @@
 #define REVDWBYTES(t)   ( (((t)&0xff) << 24) | (((t)&0xff00) << 8) | (((t)&0xff0000) >> 8) | (((t)>>24) & 0xff) )
 #define REVWBYTES(t)    ( (((t)&0xff) << 8) | (((t)>>8) &0xff) )
 #define TAG(a,b,c,d)    ( ((a)<<24) | ((b)<<16) | ((c)<<8) | (d) )
-#define WAVE_FORMAT_EXTENSIBLE (0xFFFE)
+#ifndef WAVE_FORMAT_EXTENSIBLE
+# define WAVE_FORMAT_EXTENSIBLE (0xFFFE)
+#endif
 #ifndef WAVE_FORMAT_PCM
 #define WAVE_FORMAT_PCM (0x0001)
 #endif
+#ifndef WAVE_FORMAT_IEEE_FLOAT
 #define WAVE_FORMAT_IEEE_FLOAT (0x0003)
-
+#endif
 
 const GUID KSDATAFORMAT_SUBTYPE_PVOC = {
                     0x8312b9c2,
@@ -83,6 +86,10 @@ typedef union {
 typedef struct pvoc_file {
     WAVEFORMATEX fmtdata;
     PVOCDATA pvdata;
+    /* RWD 2022 to help CDP pvocex extension, requires two-stage file creation/update */
+    int32_t propsoffset;
+    int32_t needsupdate;    //for two-stage creation/update CDP-style
+    int32_t fmtchunkoffset;
     int32_t datachunkoffset;
     int32_t nFrames;   /* no of frames in file */
     int32_t FramePos;  /* where we are in file */
@@ -93,13 +100,28 @@ typedef struct pvoc_file {
     int32_t do_byte_reverse;
     char *name;
     float *customWindow;
+    
 } PVOCFILE;
+
+
 
 static PVOCFILE *files[MAXFILES];
 
 static int32_t pvoc_writeheader(int32_t ofd);
 static int32_t pvoc_readheader(int32_t ifd,WAVEFORMATPVOCEX *pWfpx);
 
+int32_t pvoc_getdatasize_bytes(int32_t fd)
+{
+    int32_t datachunksize, framesize;
+    
+    if(files[fd]==NULL)
+        return -1;
+    if(files[fd]->nFrames == 0)
+        return 0;
+    framesize = files[fd]->pvdata.nAnalysisBins * 2 * sizeof(float);
+    datachunksize = files[fd]->nFrames * framesize * files[fd]->fmtdata.nChannels;
+    return datachunksize;
+}
 
 static int32_t write_guid(int32_t fd,int32_t byterev,const GUID *pGuid)
 {
@@ -140,9 +162,8 @@ static int32_t write_pvocdata(int32_t fd,int32_t byterev,const PVOCDATA *pData)
     assert(pData);
 #endif
 
-
     if(byterev){
-        int32_t revdwval;
+//        int32_t revdwval;
         PVOCDATA data;
         SND_SAMP ssamp;
         data.wWordFormat = REVWBYTES(pData->wWordFormat);
@@ -162,7 +183,7 @@ static int32_t write_pvocdata(int32_t fd,int32_t byterev,const PVOCDATA *pData)
         
         ssamp.fsamp = pData->fWindowParam;
         //dwval = * ( int32_t *) &(pData->fWindowParam);
-        revdwval = REVDWBYTES(ssamp.lsamp);
+        ssamp.lsamp = REVDWBYTES(ssamp.lsamp);
         //dwval = REVDWBYTES(dwval);
         //data.fWindowParam = * (float *) &dwval;
         data.fWindowParam = ssamp.fsamp;
@@ -184,6 +205,7 @@ static int32_t write_fmt(int fd, int byterev,const WAVEFORMATEX *pfmt)
 #ifdef _DEBUG
     assert(fd >=0);
     assert(pfmt);
+    assert(pfmt->cbSize == 62);
 #endif
 
     if(byterev){
@@ -282,7 +304,7 @@ static int32_t pvoc_readWindow(int fd, int byterev, float *window,DWORD length)
 
 
 
-const char *pvoc_errorstr()
+const char *pvoc_errorstr(void)
 {
     return (const char *) pv_errstr;
 }
@@ -292,7 +314,7 @@ const char *pvoc_errorstr()
 /* thanks to the SNDAN programmers for this! */
 /* return 0 for big-endian machine, 1 for little-endian machine*/
 /* probably no good for 16bit swapping though */
-static int32_t byte_order()
+static int32_t byte_order(void)
 {
   int32_t   one = 1;
   char* endptr = (char *) &one;
@@ -334,6 +356,7 @@ static void prepare_pvfmt(WAVEFORMATEX *pfmt,DWORD chans, DWORD srate,
     pfmt->wFormatTag        = WAVE_FORMAT_EXTENSIBLE;
     pfmt->nChannels         = (WORD) chans;
     pfmt->nSamplesPerSec    = srate;
+    pfmt->nBlockAlign       = 0;  /* decl to please gcc */
     switch(stype){
     case(STYPE_16):
         pfmt->wBitsPerSample = (WORD)16;
@@ -458,6 +481,8 @@ int32_t  pvoc_createfile(const char *filename,
     pfile->pvdata.fWindowParam = winparam;
     pfile->to_delete = 0;
     pfile->readonly = 0;
+    pfile->needsupdate = 0;   //could be overruled later, but only once!
+    
     if(fWindow!= NULL){
         pfile->customWindow = malloc(dwWinlen * sizeof(float));
         if(pfile->customWindow==NULL){
@@ -478,7 +503,7 @@ int32_t  pvoc_createfile(const char *filename,
         pv_errstr = "\npvsys: unable to create file";
         return -1;
     }
-
+    pfile->propsoffset = 0;
     pfile->datachunkoffset = 0;
     pfile->nFrames = 0;
     pfile->FramePos = 0;
@@ -500,6 +525,66 @@ int32_t  pvoc_createfile(const char *filename,
 
     return i;
 }
+
+int32_t pvoc_getpvxprops(int32_t ifd, PVOCDATA *data)
+{
+    if(files[ifd]==NULL)
+        return 0;
+#ifdef _DEBUG
+    assert(data != NULL);
+#endif
+    memcpy((char*) data,(char*) &files[ifd]->pvdata,sizeof(PVOCDATA));
+    return 1;
+}
+/* tell pvsys to update pvocdata on close; return 0 for success */
+/* only other way to do this is to test initial params != 0 */
+/* I want to control this explicitly, for now */
+int32_t pvoc_set_needsupdate(int32_t ifd)
+{
+    if(files[ifd]==NULL)
+        return -1;
+    if(files[ifd]->readonly)
+        return -1;
+    files[ifd]->needsupdate = 1;
+    return 0;
+}
+
+//returns 0 for success
+int32_t pvoc_canupdate(int32_t ifd)
+{
+    if(files[ifd]==NULL || files[ifd]->readonly)
+        return -1;
+    if(files[ifd]->needsupdate)
+        return 0;
+    else
+        return -1;
+}
+
+//ONLY when creating new file using 2-stages.called last thing before file close.
+#if 0
+int32_t pvoc_updateprops(int32_t fd, const PVOCDATA *data)
+{
+    DWORD pos;
+    
+    if(files[fd]==NULL)
+        return -1;
+    if(files[fd]->readonly)
+        return -1;
+    if(files[fd]->needsupdate==0)
+        return -1;
+#ifdef _DEBUG
+    // the only field that MUST be set, needed for read/write frames
+    assert(files[fd]->pvdata.nAnalysisBins == data->nAnalysisBins);
+#endif
+    // need to seek to propsoffset, then we can call write_pvocdata
+    pos = lseek(files[fd]->fd,files[fd]->propsoffset,SEEK_SET);
+    if(pos != files[fd]->propsoffset){
+        pv_errstr = "\npvsys: error updating pvoc props";
+        return 0;
+    }
+    return 1;
+}
+#endif
 
 int32_t pvoc_openfile(const char *filename,PVOCDATA *data,WAVEFORMATEX *fmt)
 {
@@ -549,6 +634,8 @@ int32_t pvoc_openfile(const char *filename,PVOCDATA *data,WAVEFORMATEX *fmt)
     pfile->name = pname;
     pfile->do_byte_reverse = !byte_order(); 
     pfile->readonly = 1;
+    pfile->needsupdate = 0;   // just to state it explicitly!
+    pfile->to_delete = 0;
     files[i] = pfile;
 
     if(!pvoc_readheader(i,&wfpx)){
@@ -902,6 +989,8 @@ static int32_t pvoc_writeheader(int ofd)
         pv_errstr = "\npvsys: error writing header";
         return 0;
     }
+    /* we need to record where we are, as we may have to update fmt data before file close */
+    files[ofd]->fmtchunkoffset = lseek(files[ofd]->fd,0,SEEK_CUR);
     
     if(write_fmt(files[ofd]->fd,files[ofd]->do_byte_reverse,&(files[ofd]->fmtdata)) != SIZEOF_WFMTEX){
         pv_errstr = "\npvsys: error writing fmt chunk";
@@ -939,8 +1028,9 @@ static int32_t pvoc_writeheader(int ofd)
         pv_errstr = "\npvsys: error writing fmt chunk";
         return 0;
     }
-
-
+/* RWD new 2022 so we can update all pvocex props on closing new file */
+    files[ofd]->propsoffset = lseek(files[ofd]->fd,0,SEEK_CUR);
+    
     if(write_pvocdata(files[ofd]->fd,files[ofd]->do_byte_reverse,&(files[ofd]->pvdata)) != sizeof(PVOCDATA)){
         pv_errstr = "\npvsys: error writing fmt chunk";
         return 0;
@@ -975,7 +1065,7 @@ static int32_t pvoc_writeheader(int ofd)
     if(!files[ofd]->do_byte_reverse)
         tag = REVDWBYTES(tag);
     if(write(files[ofd]->fd,&tag,sizeof(int32_t)) != sizeof(int32_t)){
-        pv_errstr = "\npvsys: error writing header";
+        pv_errstr = "\npvsys: write error writing header";
         return 0;
     }
 
@@ -983,7 +1073,7 @@ static int32_t pvoc_writeheader(int ofd)
 
     size = 0;
     if(write(files[ofd]->fd,&size,sizeof(int32_t)) != sizeof(int32_t)){
-        pv_errstr = "\npvsys: error writing header";
+        pv_errstr = "\npvsys: write error writing header";
         return 0;
     }
     files[ofd]->datachunkoffset = lseek(files[ofd]->fd,0,SEEK_CUR);
@@ -992,29 +1082,32 @@ static int32_t pvoc_writeheader(int ofd)
     return 1;
 }
 
-
+/* called by pvoc_closefile() */
+/* which checks "readonly", if not set, file is newly created */
 static int32_t pvoc_updateheader(int ofd)
 {
     int32_t riffsize,datasize;
     DWORD pos;
+    //RWD Oct 2025 avoid singed/unsigned errors
+    long longpos;
 
 #ifdef _DEBUG   
     assert(files[ofd]);
     assert(files[ofd]->fd >= 0);
-    assert(files[ofd]->curpos == lseek(files[ofd]->fd,0,SEEK_CUR));
+    //assert(files[ofd]->curpos == lseek(files[ofd]->fd,0,SEEK_CUR));
+    assert(!files[ofd]->readonly);
 #endif
-
     datasize = files[ofd]->curpos - files[ofd]->datachunkoffset;
     pos = lseek(files[ofd]->fd,files[ofd]->datachunkoffset-sizeof(DWORD),SEEK_SET);
     if(pos != files[ofd]->datachunkoffset-sizeof(DWORD)){
-        pv_errstr = "\npvsys: error updating data chunk";
+        pv_errstr = "\npvsys: seek error updating data chunk";
         return 0;
     }
 
     if(files[ofd]->do_byte_reverse)
         datasize = REVDWBYTES(datasize);
     if(write(files[ofd]->fd,(char *) &datasize,sizeof(DWORD)) != sizeof(DWORD)){
-        pv_errstr = "\npvsys: error updating data chunk";
+        pv_errstr = "\npvsys: write error updating data chunk";
         return 0;
     }
 
@@ -1024,23 +1117,83 @@ static int32_t pvoc_updateheader(int ofd)
         riffsize = REVDWBYTES(riffsize);
     pos = lseek(files[ofd]->fd,sizeof(DWORD),SEEK_SET);
     if(pos != sizeof(DWORD)){
-        pv_errstr = "\npvsys: error updating data chunk";
+        pv_errstr = "\npvsys: seek error updating riff chunk";
         return 0;
     }
     if(write(files[ofd]->fd,(char *) &riffsize,sizeof(DWORD)) != sizeof(DWORD)){
-        pv_errstr = "\npvsys: error updating riff chunk";
+        pv_errstr = "\npvsys: write error updating riff chunk";
         return 0;
     }
-
-    pos = lseek(files[ofd]->fd,0,SEEK_END);
-    if(pos < 0){
-        pv_errstr = "\npvsys: error seeking to end of file";
+ 
+    // update PVOCDATA and WAVEFORMATEX fields if required
+    if(files[ofd]->needsupdate){
+#ifdef _DEBUG
+        fprintf(stderr,"updating in pvoc_update_header()\n");
+#endif
+        WORD validbits;
+        
+        pos = lseek(files[ofd]->fd,files[ofd]->fmtchunkoffset,SEEK_SET);
+        if(pos != (DWORD) files[ofd]->fmtchunkoffset){
+            pv_errstr = "\npvsys: seek error updating fmt data";
+            return 0;
+        }
+        
+        pos = write_fmt(files[ofd]->fd,files[ofd]->do_byte_reverse,&(files[ofd]->fmtdata));
+        if(pos != SIZEOF_WFMTEX){
+            pv_errstr = "\npvsys: write error updating fmt data";
+            return 0;
+        }
+        // need to update validbits in case we need it, at least make it sensible
+        // this should have been updated earlier
+        validbits = files[ofd]->fmtdata.wBitsPerSample;
+        if(files[ofd]->do_byte_reverse)
+            validbits = REVWBYTES(validbits);
+        
+        if(write(files[ofd]->fd,(char *) &validbits,sizeof(WORD)) != sizeof(WORD)){
+            pv_errstr = "\npvsys: error writing extended fmt chunk";
+            return 0;
+        }
+        pos = lseek(files[ofd]->fd,files[ofd]->propsoffset,SEEK_SET);
+        if(pos != (DWORD) files[ofd]->propsoffset){
+            pv_errstr = "\npvsys: seek error updating pvx data";
+            return 0;
+        }
+        //int32_t write_pvocdata(int32_t fd,int32_t byterev,const PVOCDATA *pData)
+        pos = write_pvocdata(files[ofd]->fd,files[ofd]->do_byte_reverse,&(files[ofd]->pvdata));
+        if(pos != sizeof(PVOCDATA)){
+            pv_errstr = "\npvsys: write error updating pvx data";
+            return 0;
+        }
+    }
+    /*pos*/ longpos = lseek(files[ofd]->fd, 0, SEEK_END);
+    if(/*pos*/ longpos  < 0) {
+        pv_errstr = "\npvsys: seek error seeking to end of file";
         return 0;
     }
+    
     return 1;
 }
 
-
+int32_t pvoc_update_closefile(int ofd, const PVOCDATA *data, const WAVEFORMATEXTENSIBLE *wfx)
+{
+    if(files[ofd]==NULL){
+        pv_errstr = "\npvsys: file does not exist";
+        return 0;
+    }
+    
+    if(files[ofd]->fd < 0){
+        pv_errstr = "\npvsys: file not open";
+        return 0;
+    }
+    if(files[ofd]->readonly) {
+        pv_errstr = "\ncannot update readonly file"; // probably an input file
+    }
+    else {
+        memcpy((char*) &files[ofd]->fmtdata, (char*) &wfx->Format, sizeof(WAVEFORMATEX));
+        memcpy((char*) &files[ofd]->pvdata, (char*) data, sizeof(PVOCDATA));
+    }
+    return pvoc_closefile(ofd);
+}
 
 
 int32_t pvoc_closefile(int ofd)
@@ -1054,17 +1207,17 @@ int32_t pvoc_closefile(int ofd)
         pv_errstr = "\npvsys: file not open";
         return 0;
     }
-    if(!files[ofd]->readonly)
+    if(!files[ofd]->readonly) {
         if(!pvoc_updateheader(ofd))
             return 0;
-    
+    }
     close(files[ofd]->fd);
     if(files[ofd]->to_delete && !(files[ofd]->readonly))
         remove(files[ofd]->name);
 
     free(files[ofd]->name);
     free(files[ofd]);
-    files[ofd] = NULL;
+    files[ofd] = 0;
 
     return 1;
 }
@@ -1176,7 +1329,7 @@ int32_t pvoc_getframes(int32_t ifd,float *frames,DWORD nframes)
             pv_errstr = "\npvsys: error reading data";
             return rc;
         }
-        for(i=0;i < got / sizeof(float);i++){
+        for(i=0;i < got / (int32_t) sizeof(float);i++){
             temp = *lfp;
             oval = REVDWBYTES(temp);
             *lfp++ = oval;
@@ -1214,7 +1367,7 @@ int32_t pvoc_getframes(int32_t ifd,float *frames,DWORD nframes)
 
     return rc;
 }
-
+// return 0 for success, -1 for error
 int32_t pvoc_rewind(int32_t ifd,int32_t skip_first_frame)
 {
     int32_t rc = -1;
@@ -1231,8 +1384,9 @@ int32_t pvoc_rewind(int32_t ifd,int32_t skip_first_frame)
         pv_errstr = "\npvsys: file not open";
         return rc;
     }
-    skipsize =  files[ifd]->pvdata.dwFrameAlign * files[ifd]->fmtdata.nChannels;
     skipframes = files[ifd]->fmtdata.nChannels;
+    //skipsize =  files[ifd]->pvdata.dwFrameAlign * skipframes;
+    
     
     fd = files[ifd]->fd;
     pos = files[ifd]->datachunkoffset;
@@ -1244,7 +1398,7 @@ int32_t pvoc_rewind(int32_t ifd,int32_t skip_first_frame)
         pv_errstr = "\npvsys: error rewinding file";
         return rc;
     }
-    files[ifd]->curpos = files[ifd]->datachunkoffset + skipsize;
+    files[ifd]->curpos = /* files[ifd]->datachunkoffset + skipsize */ pos;
     files[ifd]->FramePos = skipframes;
 
     return 0;
@@ -1259,7 +1413,7 @@ int32_t pvsys_release(void)
     for(i=0;i < MAXFILES;i++){
         if(files[i]) {
 #ifdef _DEBUG
-            fprintf(stderr,"\nDEBUG WARNING: files still open!\n");
+            fprintf(stderr,"\nDEBUG WARNING: file %d still open!\n",i);
 #endif
             if(!pvoc_closefile(i)){             
                 pv_errstr = "\npvsys: unable to close file on termination";
@@ -1279,6 +1433,7 @@ int32_t pvoc_framecount(int32_t ifd)
     return files[ifd]->nFrames;
 }
 /* RWD Jan 2014   */
+// return -1 for error, else framepos
 int32_t pvoc_framepos(int32_t ifd)
 {
     if(files[ifd]==NULL)
@@ -1286,34 +1441,77 @@ int32_t pvoc_framepos(int32_t ifd)
         
     return files[ifd]->FramePos;
 }
-
+// return -1 for error, 0 for success
+//NB framecount always disregards chans. But offset represents m/c block: offset*2 to get frames
 int32_t pvoc_seek_mcframe(int32_t ifd, int32_t offset, int32_t mode)
 {
-    DWORD mcframealign;
-    DWORD newpos;
+ //   DWORD mcframealign;
+    int32_t rawoffset;  /* RWD need to be signed to work for to and fro seeks*/
     int32_t rc = -1;
+    int32_t mcframealign;
+    int32_t pvxcur = 0;
     if(files[ifd]==NULL)
         return -1;
     mcframealign =  files[ifd]->pvdata.dwFrameAlign * files[ifd]->fmtdata.nChannels;
-    switch(mode){
+    rawoffset = offset * mcframealign;
+    switch (mode) {
     case SEEK_SET:
-        newpos = mcframealign * offset;
-        if(offset >= files[ifd]->nFrames / files[ifd]->fmtdata.nChannels){
+        // offset is m/c quantity, e.g. 2 * frame for stereo
+        if (offset >= (files[ifd]->nFrames / files[ifd]->fmtdata.nChannels)) {
             pv_errstr = "\npvsys: seek target beyond end of file";
             break;
-        } 
-        newpos += files[ifd]->datachunkoffset;
-        if(lseek(files[ifd]->fd,newpos,SEEK_SET) != newpos ) {
-            pv_errstr = "\npvsys: seek error";
+        }
+        rawoffset += files[ifd]->datachunkoffset;
+        if (lseek(files[ifd]->fd, rawoffset, SEEK_SET) != (long)rawoffset) {
+            pv_errstr = "\npvsys: seek error, SEEK_SET";
             return -1;
         }
-        files[ifd]->curpos = newpos;
+        files[ifd]->curpos = rawoffset;
         files[ifd]->FramePos = offset * files[ifd]->fmtdata.nChannels;
         rc = 0;
         break;
     case SEEK_END:
+        // go to end of file + offset, offset <= 0
+        if (offset > 0) {
+            pv_errstr = "\npvsys: seek target before start of file, offset must be <= 0";
+            break;
+        }
+#ifdef _DEBUG
+        fprintf(stderr, "pvoc_seek_mcframe: fd = %d\n", ifd);
+#endif
+        //NB not relative to datachunkoffset in this case
+        if (lseek(files[ifd]->fd, rawoffset, SEEK_END) < 0) {
+            pv_errstr = "\npvsys: seek error, SEEK_END";
+            return -1;
+        }
+#ifdef _DEBUG
+        fprintf(stderr, "pvoc_seek_mcframe: files[%d]->nFrames = %d\n", ifd, files[ifd]->nFrames);
+#endif
+        files[ifd]->FramePos = files[ifd]->nFrames - (offset * files[ifd]->fmtdata.nChannels);
+        files[ifd]->curpos = files[ifd]->datachunkoffset + files[ifd]->FramePos * files[ifd]->pvdata.dwFrameAlign;
+#ifdef _DEBUG
+        fprintf(stderr, "pvoc_seek_mcframe: got curpos = %d\n", files[ifd]->curpos);
+#endif
+        rc = 0;  //success!
+        break;
     case SEEK_CUR:
-        pv_errstr = "\npvsys: seek mode not supported yet!";
+        pvxcur = pvoc_framepos(ifd);
+        if (pvxcur + offset >= files[ifd]->nFrames) {
+            pv_errstr = "\npvsys: seek target beyond end of file";
+            return rc;
+        }
+        if (pvxcur + offset < 0) {
+            pv_errstr = "\npvsys: seek target beyond start of file";
+            return rc;
+        }
+        rawoffset = offset * mcframealign;
+        if (lseek(files[ifd]->fd, rawoffset, SEEK_CUR) < 0) {
+            pv_errstr = "\npvsys: seek error, SEEK_CUR";
+            return -1;
+        }
+        files[ifd]->FramePos = pvxcur + (offset * files[ifd]->fmtdata.nChannels);
+        files[ifd]->curpos = files[ifd]->datachunkoffset + files[ifd]->FramePos * files[ifd]->pvdata.dwFrameAlign;
+        rc = 0;
         break;
     }
     return rc;
