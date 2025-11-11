@@ -59,6 +59,24 @@ _stricmp(const char *a, const char *b)
 extern int _stricmp(const char *a, const char *b);
 #endif
 
+int printprops(SFPROPS *props)
+{
+    if(props ==  NULL)
+        return 0;
+    fprintf(stderr," ANALYSIS PROPS\n");
+    fprintf(stderr,"srate:\t\t%d\nchans:\t\t%d\n",props->srate,props->chans);
+    fprintf(stderr,"type:\t\t%d\nsamptype:\t%d\n",props->type, props->format);
+    fprintf(stderr,"chformat:\t%d\norigsize:\t%d\n", props->chformat,props->origsize);
+    fprintf(stderr,"origrate:\t%d\norigchans:\t%d\n", props->origrate, props->origchans);
+    fprintf(stderr,"specenvcnt:%d\narate:\t\t%f\n", props->specenvcnt,props->arate);
+    fprintf(stderr,"winlen:\t\t%d\ndecfac:\t\t%d\nwindow_size:%d\n\n",
+            props->winlen,props->decfac,props->window_size);
+    return 1;
+}
+
+
+
+
 int main(int argc,char **argv)
 {
 
@@ -83,7 +101,7 @@ int main(int argc,char **argv)
     ext = strrchr(argv[2],'.');
     
     if(ext==NULL || _stricmp(ext,".pvx")){
-        fprintf(stderr,"anal2pvx: outfile name must use the .pvx extension.\n");
+        fprintf(stderr,"ana2pvx: outfile name must use the .pvx extension.\n");
         exit(1);
     }
 
@@ -101,10 +119,10 @@ int main(int argc,char **argv)
     }
 
     if(props.type != wt_analysis){
-        fprintf(stderr,"anal2pvx: infile is not a CDP analysis file.\n");
+        fprintf(stderr,"ana2pvx: infile is not a CDP analysis file.\n");
         exit(1);
     }
-
+    printprops(&props);
     framesize = props.chans;
     frame = (float *) malloc(framesize * sizeof(float));
     if(frame==NULL){
