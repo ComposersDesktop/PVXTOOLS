@@ -5,7 +5,7 @@ OPT = -O3
 #OPT = -g
 # edit this as necessary to point to your portaudio directory
 
-CFLAGS = $(OPT) -mmacosx-version-min=10.8 -Dunix -DMAC  -Wall -Werror=strict-aliasing -I../include
+CFLAGS = $(OPT) -mmacosx-version-min=10.8 -arch x86_64 -Dunix -DMAC  -Wall -Werror=strict-aliasing -I../include
 OBJS=pvfileio.o
 TARGET=libpvxio.a
 
